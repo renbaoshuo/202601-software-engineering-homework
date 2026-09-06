@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="referrer" content="no-referrer">
+  <title>FLUX · 现实取景器</title>
+  <link rel="stylesheet" href="styles.css">
+  <script src="app.js" defer></script>
+</head>
+<body>
+  <header class="masthead">
+    <a class="brand" href="./"><span class="brand-mark" aria-hidden="true">f.</span> 现实取景器 <span class="brand-en">/ REALITY FINDER</span></a>
+    <a class="header-link" href="https://huggingface.co/XLabs-AI/flux-RealismLora" target="_blank" rel="noreferrer">模型主页 ↗</a>
+  </header>
+
+  <main>
+    <div class="workspace">
+      <section class="panel controls" aria-labelledby="input-title">
+        <div class="section-heading"><h2 id="input-title"><span>01</span> 描述画面</h2><span class="micro">TEXT → IMAGE</span></div>
+        <div class="model-info"><span class="model-dot" aria-hidden="true"></span><div><strong>FLUX.1 dev + Realism LoRA</strong><a href="https://huggingface.co/XLabs-AI/flux-RealismLora" target="_blank" rel="noreferrer">XLabs-AI/flux-RealismLora ↗</a></div><span class="model-provider">fal.ai</span></div>
+
+        <form id="generate-form">
+          <fieldset id="inputs">
+            <div class="label-row"><label for="api-key">Hugging Face API Key</label><a href="https://huggingface.co/settings/tokens" target="_blank" rel="noreferrer">获取 Token ↗</a></div>
+            <div class="key-field"><input id="api-key" type="password" placeholder="hf_…" required autocomplete="off" spellcheck="false" autocapitalize="off" aria-describedby="key-help"><button id="clear-key" type="button" title="清空 API Key">清空</button></div>
+            <p class="help" id="key-help">仅在本页使用，不写入浏览器存储或调用记录。</p>
+
+            <div class="label-row prompt-label"><label for="prompt">提示词 <span lang="en">/ Prompt</span></label><span id="prompt-count" class="micro"></span></div>
+            <textarea id="prompt" rows="10" required maxlength="6000" spellcheck="false" placeholder="请输入提示词"></textarea>
+
+            <details class="settings">
+              <summary>生成参数 <span>1024 × 768 · Seed 42</span></summary>
+              <div class="settings-grid">
+                <div><label for="image-size">画幅</label><select id="image-size"><option value="1024x768">横幅 · 4:3</option><option value="1024x1024">方形 · 1:1</option><option value="768x1024">竖幅 · 3:4</option></select></div>
+                <div><label for="seed">随机种子</label><input id="seed" type="number" min="0" max="2147483647" step="1" value="42" placeholder="留空则随机"></div>
+              </div>
+              <p class="help">固定 28 步、引导系数 3.5、LoRA 权重 1。比较提示词时保持参数一致。</p>
+            </details>
+            <button class="generate-button" id="generate" type="submit"><span>生成图像</span><span aria-hidden="true">↗</span></button>
+          </fieldset>
+          <button class="stop-button" id="stop" type="button" hidden>停止等待</button>
+          <p class="billing-note">调用会使用 HF 推理额度。停止等待不会取消远端任务，服务端仍可能计费。</p>
+        </form>
+      </section>
+
+      <div class="output-column">
+        <section class="panel output" aria-labelledby="output-title">
+          <div class="section-heading"><h2 id="output-title"><span>02</span> 生成结果</h2><span id="status-badge" class="badge" data-state="idle">尚未生成</span></div>
+          <div class="viewfinder" id="viewfinder" aria-busy="false">
+            <div class="empty-state" id="empty-state">
+              <div class="frame-symbol" aria-hidden="true"><span>+</span></div>
+              <p id="empty-title">下一张照片，从这里开始</p>
+              <span id="empty-note">输入 API Key 和提示词，点击生成</span>
+            </div>
+            <img id="result-image" alt="本次提示词生成的图像" hidden>
+            <span class="frame-label" aria-hidden="true">FLUX / REALISM</span>
+          </div>
+          <div class="result-bar"><span id="image-meta">等待第一张图像</span><button id="download-image" type="button" class="text-button" disabled>下载图像 ↓</button></div>
+          <p id="status-message" class="status-message" role="status" aria-live="polite">准备就绪。生成结果与本次调用记录会显示在这里。</p>
+        </section>
+
+        <section class="panel records" aria-labelledby="record-title">
+          <div class="section-heading"><h2 id="record-title"><span>03</span> 调用记录</h2><button id="download-record" class="text-button" type="button" disabled>导出 JSON ↓</button></div>
+          <div class="record-summary"><span id="record-outcome">未发起请求</span><span id="elapsed">—</span></div>
+          <ol id="request-log" aria-label="本次请求日志"><li class="log-placeholder">生成后显示 HTTP 状态、请求编号和耗时。</li></ol>
+          <details id="request-details"><summary>查看本次请求参数</summary><pre id="request-body">尚无请求</pre></details>
+        </section>
+      </div>
+    </div>
+    <footer><span>软件工程 · API 调用实验</span><span>HUGGING FACE → FAL.AI → FLUX</span></footer>
+  </main>
+  <noscript>请启用 JavaScript 后使用图像生成功能。</noscript>
+</body>
+</html>
