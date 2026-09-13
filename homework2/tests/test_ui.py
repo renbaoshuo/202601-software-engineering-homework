@@ -16,7 +16,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 import pygame
 
 from game import ActionKind, Game, State
-from levels import Level
+from levels import LEVELS, Level
 from ui import BoardLayout, GameApp
 
 
@@ -259,6 +259,82 @@ class GameAppTests(unittest.TestCase):
                 self.app.update(10)
                 self.assertEqual(self.snapshot(), before)
 
+    def test_t10_run_ignores_queued_clicks_on_animation_completion_frame(self):
+        for col, arrows, mistakes in ((0, 2, 3), (2, 3, 2)):
+            with self.subTest(col=col):
+                self.make_app()
+                self.click_button("start")
+                self.click_cell(0, col)
+                action = self.app.game.active_action
+                self.app.update(action.duration - 0.001)
+                pygame.event.clear()
+                for row, target_col in ((0, col), (1, 2)):
+                    pygame.event.post(pygame.event.Event(
+                        pygame.MOUSEBUTTONDOWN,
+                        pos=self.app.board_layout().cell_center(row, target_col), button=1))
+
+                # 第一帧处理排队点击并结束旧动作，第二帧才退出。
+                def quit_after_frame():
+                    pygame.event.post(pygame.event.Event(pygame.QUIT))
+
+                with patch("pygame.time.Clock") as clock:
+                    clock.return_value.tick.return_value = 16
+                    with patch("pygame.display.flip", side_effect=quit_after_frame):
+                        self.app.run()
+                self.assertEqual(self.app.game.state, State.PLAYING)
+                self.assertIsNone(self.app.game.active_action)
+                self.assertEqual(self.app.game.remaining_arrows, arrows)
+                self.assertEqual(self.app.game.mistakes_left, mistakes)
+
+    def test_first_click_does_not_consume_previous_frame_time(self):
+        for col in (0, 2):
+            with self.subTest(col=col):
+                self.make_app()
+                self.click_button("start")
+                event = pygame.event.Event(pygame.MOUSEBUTTONDOWN,
+                                          pos=self.app.board_layout().cell_center(0, col), button=1)
+                self.app.step((event,), 1)
+                action = self.app.game.active_action
+                self.assertIsNotNone(action)
+                self.assertEqual(action.elapsed, 0)
+                self.assertEqual(self.app.game.state, State.ANIMATING)
+                self.assertEqual(self.app.game.remaining_arrows, 3)
+
+    def test_t11_restart_and_new_click_do_not_reuse_cancelled_action_time(self):
+        for col in (0, 2):
+            with self.subTest(col=col):
+                self.make_app()
+                self.click_button("start")
+                self.click_cell(0, col)
+                previous_action = self.app.game.active_action
+                self.app.update(previous_action.duration - 0.001)
+                restart = next(button for button in self.app.buttons() if button.command == "restart")
+                events = (
+                    pygame.event.Event(pygame.MOUSEBUTTONDOWN, pos=restart.rect.center, button=1),
+                    pygame.event.Event(pygame.MOUSEBUTTONDOWN,
+                                       pos=self.app.board_layout().cell_center(0, col), button=1),
+                )
+                self.app.step(events, 1)
+                self.assertIsNot(self.app.game.active_action, previous_action)
+                self.assertEqual(self.app.game.active_action.elapsed, 0)
+                self.assertEqual(self.app.game.state, State.ANIMATING)
+                self.assertEqual(self.app.game.remaining_arrows, 3)
+                self.assertEqual(self.app.game.mistakes_left, 3 if col == 0 else 2)
+
+    def test_t18_quit_stops_frame_updates_and_later_input(self):
+        for scene in ("exit", "blocked"):
+            with self.subTest(scene=scene):
+                self.build_scene(scene)
+                before = self.snapshot()
+                events = (
+                    pygame.event.Event(pygame.QUIT),
+                    pygame.event.Event(pygame.MOUSEBUTTONDOWN,
+                                       pos=self.app.board_layout().cell_center(0, 0), button=1),
+                )
+                self.app.step(events, 1)
+                self.assertFalse(self.app.running)
+                self.assertEqual(self.snapshot(), before)
+
     def test_buttons_are_processed_before_board_hit_detection(self):
         self.build_scene("playing")
         button = next(button for button in self.app.buttons() if button.command == "restart")
@@ -362,6 +438,31 @@ class GameAppTests(unittest.TestCase):
                 self.assertTrue(button.label)
                 self.assertTrue(self.app.screen.get_rect().contains(button.rect))
                 self.assertFalse(button.rect.colliderect(self.app.board_layout().rect))
+
+    def test_builtin_boards_do_not_cover_status_text(self):
+        self.make_app(levels=LEVELS)
+        self.click_button("start")
+        for index, level in enumerate(LEVELS):
+            # 走实际关卡流程，用渲染所得文字矩形检查大棋盘遮挡回归。
+            with self.subTest(level=level.id):
+                rectangles = []
+                original_text = self.app.text
+
+                def record_text(*args, **kwargs):
+                    rect = original_text(*args, **kwargs)
+                    rectangles.append(rect)
+                    return rect
+
+                with patch.object(self.app, "text", side_effect=record_text):
+                    self.app.draw_stats()
+                for rect in rectangles:
+                    self.assertFalse(rect.colliderect(self.app.board_layout().rect))
+                if index < len(LEVELS) - 1:
+                    from game import solve_level
+                    for row, col in solve_level(level):
+                        self.click_cell(row, col)
+                        self.finish_action()
+                    self.click_button("next")
 
     def test_t17_resources_load_from_an_unrelated_working_directory(self):
         original_directory = Path.cwd()

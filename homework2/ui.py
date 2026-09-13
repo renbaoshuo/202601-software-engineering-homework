@@ -139,14 +139,20 @@ class GameApp:
     def update(self, dt):
         self.game.update(dt)
 
+    def step(self, events, dt):
+        # 先按画面当前状态处理排队输入，再推进仍在进行的旧动作。
+        action = self.game.active_action
+        for event in events:
+            self.handle_event(event)
+        if self.running and self.game.active_action is action:
+            self.update(dt)
+
     def run(self):
         clock = pygame.time.Clock()
         try:
             while self.running:
-                # 先推进已有动作，避免把上一帧耗时算到新点击的动作上。
-                self.update(clock.tick(60) / 1000)
-                for event in pygame.event.get():
-                    self.handle_event(event)
+                dt = clock.tick(60) / 1000
+                self.step(pygame.event.get(), dt)
                 if self.running:
                     self.draw()
                     pygame.display.flip()
